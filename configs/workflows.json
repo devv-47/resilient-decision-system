@@ -1,0 +1,136 @@
+{
+  "workflows": {
+    "loan_approval": {
+      "version": "1.0",
+      "description": "Retail Loan Application Decision Workflow",
+      "required_fields": ["applicant_name", "age", "monthly_income", "loan_amount", "pan_number"],
+      "external_dependency": {
+        "name": "credit_bureau_service",
+        "max_retries": 3,
+        "retry_delay_seconds": 0.2
+      },
+      "stages": [
+        {
+          "stage_name": "MANDATORY_ELIGIBILITY_CHECK",
+          "type": "rule_group",
+          "on_fail": "REJECTED",
+          "rules": [
+            {
+              "rule_id": "R1_MIN_AGE",
+              "field": "age",
+              "operator": ">=",
+              "value": 21,
+              "reason": "Applicant must be at least 21 years old"
+            },
+            {
+              "rule_id": "R2_MAX_AGE",
+              "field": "age",
+              "operator": "<=",
+              "value": 60,
+              "reason": "Applicant age cannot exceed 60 years"
+            },
+            {
+              "rule_id": "R3_KYC_VERIFIED",
+              "field": "external.kyc_verified",
+              "operator": "==",
+              "value": true,
+              "reason": "PAN/KYC verification from bureau must pass"
+            }
+          ]
+        },
+        {
+          "stage_name": "FINANCIAL_THRESHOLD_CHECK",
+          "type": "rule_group",
+          "on_fail": "REJECTED",
+          "rules": [
+            {
+              "rule_id": "R4_MIN_INCOME",
+              "field": "monthly_income",
+              "operator": ">=",
+              "value": 25000,
+              "reason": "Minimum monthly income required is 25,000"
+            },
+            {
+              "rule_id": "R5_MIN_CREDIT_SCORE",
+              "field": "external.credit_score",
+              "operator": ">=",
+              "value": 650,
+              "reason": "Credit score below 650 is automatically rejected"
+            }
+          ]
+        },
+        {
+          "stage_name": "CONDITIONAL_RISK_ROUTING",
+          "type": "conditional_branch",
+          "conditions": [
+            {
+              "rule_id": "R6_BORDERLINE_SCORE",
+              "field": "external.credit_score",
+              "operator": "<",
+              "value": 750,
+              "action": "MANUAL_REVIEW",
+              "reason": "Credit score between 650 and 749 requires manual underwriter review"
+            },
+            {
+              "rule_id": "R7_HIGH_VALUE_LOAN",
+              "field": "loan_amount",
+              "operator": ">",
+              "value": 500000,
+              "action": "MANUAL_REVIEW",
+              "reason": "Loans above 5,00,000 require senior manager manual approval"
+            }
+          ],
+          "default_action": "APPROVED"
+        }
+      ]
+    },
+    "vendor_approval": {
+      "version": "1.0",
+      "description": "Enterprise Vendor Onboarding Workflow",
+      "required_fields": ["vendor_name", "gst_registered", "annual_turnover", "pan_number"],
+      "external_dependency": {
+        "name": "gst_compliance_service",
+        "max_retries": 3,
+        "retry_delay_seconds": 0.2
+      },
+      "stages": [
+        {
+          "stage_name": "COMPLIANCE_CHECK",
+          "type": "rule_group",
+          "on_fail": "REJECTED",
+          "rules": [
+            {
+              "rule_id": "V1_GST_ACTIVE",
+              "field": "gst_registered",
+              "operator": "==",
+              "value": true,
+              "reason": "Vendor must have an active GST registration"
+            },
+            {
+              "rule_id": "V2_NO_BLACKLIST",
+              "field": "external.is_blacklisted",
+              "operator": "==",
+              "value": false,
+              "reason": "Vendor must not be in regulatory blacklist"
+            }
+          ]
+        },
+        {
+          "stage_name": "TURNOVER_ROUTING",
+          "type": "conditional_branch",
+          "conditions": [
+            {
+              "rule_id": "V3_SMALL_VENDOR_REVIEW",
+              "field": "annual_turnover",
+              "operator": "<",
+              "value": 1000000,
+              "action": "MANUAL_REVIEW",
+              "reason": "Vendors with turnover under 10 Lakhs require manual risk check"
+            }
+          ],
+          "default_action": "APPROVED"
+        }
+      ]
+    }
+  }
+}
